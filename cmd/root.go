@@ -56,7 +56,8 @@ var rootCmd = &cobra.Command{
 		// table.Render()
 
 		if (numRequest < connRequest) {
-			fmt.Println("your maths is out of order.\n your number of conncurrent request is more than your number of request ")
+			fmt.Println("\nyour maths is out of order,\nthere are far more number of conncurrent request than number of request to be made\n ")
+			return
 		}
 
 		if len(args) < 1 && URL == "" {
@@ -99,7 +100,6 @@ var rootCmd = &cobra.Command{
 					}
 				}
 
-
 				p := pkg.HttpRequest{
 					Url: URL,
 					Method: method,
@@ -108,12 +108,10 @@ var rootCmd = &cobra.Command{
 				}
 
 				res := pkg.MultipleRequest(p, numRequest, connRequest)
-
-
-				fmt.Println("happahas")
 				
 				metrics := [][]string{
-					{"Requests Per Second (RPS)", strconv.FormatFloat(res.TotalTime, 'f', -1, 64)},
+					{"Total time taken (S)", strconv.FormatFloat(res.TotalTime, 'f', -1, 64)},
+					{"Requests Per Second (RPS)", strconv.FormatFloat(float64(res.RequestPerSec), 'f', -1, 64)},
 				}
 
 				table := tablewriter.NewWriter(os.Stdout)

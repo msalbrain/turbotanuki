@@ -27,7 +27,7 @@ type HttpRequest struct {
 
 type RequestStat struct {
 	TotalTime float64
-	requestPerSec int64
+	RequestPerSec int64
 	ConcurrentReq int64
 	ErrorRate float32
 	PeakLoadCapacity int
@@ -70,18 +70,18 @@ func MakeComplexHttpCall(reqData HttpRequest) RequestStat {
 	}
 	defer resp.Body.Close()	
 
-	if resp.StatusCode > 199 && resp.StatusCode < 300 {
-		green.Println("congratulations it was a success with ", resp.StatusCode)		
-	} else if resp.StatusCode > 299 && resp.StatusCode < 400 {
-		yellow.Println("redirect with ", resp.StatusCode)
-	} else {
-		red.Println("failed with ", resp.StatusCode)
-	} 
+	// if resp.StatusCode > 199 && resp.StatusCode < 300 {
+	// 	green.Println("congratulations it was a success with ", resp.StatusCode)		
+	// } else if resp.StatusCode > 299 && resp.StatusCode < 400 {
+	// 	yellow.Println("redirect with ", resp.StatusCode)
+	// } else {
+	// 	red.Println("failed with ", resp.StatusCode)
+	// } 
 	
 	elapsedTime := time.Since(startTime)
 
 	// fmt.Println("Elapsed Time:", elapsedTime)
-	client.CloseIdleConnections()
+	
 	return RequestStat{TotalTime: float64(elapsedTime.Milliseconds())}
 
 }
@@ -103,9 +103,7 @@ func MakeConnReq(reqData HttpRequest, connReq int64) []RequestStat {
 			// rs <- MakeComplexHttpCall(reqData)
 			// fmt.Println("this is func:", i, "end\n\n.")		
 		}()
-
 	}
-
 	wg.Wait()
 
 	// for r := range rs {	
@@ -129,32 +127,43 @@ func MultipleRequest(reqData HttpRequest, numReq int64, connReq int64) RequestSt
 	if remind > 0 {
 		TInter += 1
 	}
-
-	for i := 0; i < TInter; i++ { 
-		// fmt.Println("tinter", i)
-		if i == TInter - 1 {
-			tList = append(tList, MakeConnReq(reqData, remind))
-			break
-		}
-		tList = append(tList, MakeConnReq(reqData, connReq))
+	if remind < 1 {
+		remind = connReq
 	}
 
-	return RequestStat{TotalTime: analysis(tList)}
+	for i := 0; i < TInter; i++ { 
+		if i == TInter - 1 {
+			MCR := MakeConnReq(reqData, remind)
+			tList = append(tList, MCR)
+			break
+		}
+		MCR := MakeConnReq(reqData, connReq)
+		tList = append(tList, MCR)
+	}
+
+	tTime, reqPs := analysis(tList)
+
+	return RequestStat{TotalTime: tTime, RequestPerSec: int64(reqPs)}
 }
 
 
 
 
-func analysis(r [][]RequestStat) (tTime float64) {
+func analysis(r [][]RequestStat) (tTime float64, reqSec float64) {
 	
-	index := 0
+	index := 0.0
+	
 	for i := 0; i < len(r); i++ {
         for j := 0; j < len(r[i]); j++ {
 			index += 1
 			tTime += r[i][j].TotalTime
 		}
 	}
-	tTime = tTime/float64(index)
+	
+
+	tTime = tTime * 0.001
+	reqSec = index / tTime
+
 
 	return
 }

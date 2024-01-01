@@ -37,7 +37,7 @@ Compile the project:
 
 ```bash
 cd turbotanuki
-go build
+go build -o tt
 ```
 
 ### Usage
