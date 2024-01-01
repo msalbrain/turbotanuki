@@ -43,19 +43,19 @@ go build
 ### Usage
 
 ```bash
-./yourproject [flags]
+./tt [flags]
 ```
 
 Example:
 
 ```bash
-./yourproject -u https://example.com -n 10
+./tt -u https://example.com -n 10
 ```
 
 For more options, use the `-h` or `--help` flag:
 
 ```bash
-./yourproject --help
+./tt --help
 ```
 
 ## Contributing
@@ -65,6 +65,4 @@ If you'd like to contribute to this project, please follow the [contribution gui
 ## License
 
 This project is licensed under the [License Name] - see the [LICENSE](LICENSE) file for details.
-```
 
-Make sure to replace `[Project Name]` and other placeholders with your actual project information. Additionally, ensure that the `logo.png` file is in the same directory as your README or provide the correct path to it.
