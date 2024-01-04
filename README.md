@@ -1,5 +1,5 @@
 # turbotanuki
-![Project Logo](logo.png)
+![Project Logo](Logo.png)
 
 
 ### Your all in one http load tester
