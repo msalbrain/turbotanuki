@@ -1,21 +1,25 @@
+// TODO: timeout
+
 /*
-Copyright © 2023 NAME HERE <EMAIL ADDRESS>
+Copyright © 2023 NAME HERE <salbiz2021@gmail.com>
 */
 package cmd
 
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
+	"sync"
 	"github.com/msalbrain/turbotanuki/pkg"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
-	// "log"
+	"log"
+	"math"
 	"net/url"
 	"os"
+	"strconv"
 
-	// ui "github.com/gizak/termui/v3"
-	// "github.com/gizak/termui/v3/widgets"
+	ui "github.com/gizak/termui/v3"
+	"github.com/gizak/termui/v3/widgets"
 )
 
 var URL string
@@ -28,6 +32,62 @@ var header string
 var body string
 
 var file string
+
+func GenDrawable() {
+
+	if err := ui.Init(); err != nil {
+		log.Fatalf("failed to initialize termui: %v", err)
+	}
+	defer ui.Close()
+
+	sinData := func() [][]float64 {
+		n := 220
+		data := make([][]float64, 2)
+		data[0] = make([]float64, n)
+		data[1] = make([]float64, n)
+		for i := 0; i < n; i++ {
+			data[0][i] = 1 + math.Sin(float64(i)/5)
+			data[1][i] = 1 + math.Cos(float64(i)/5)
+		}
+		return data
+	}()
+
+	rect := []int{0, 0, 100, 40}
+	
+	p2 := widgets.NewPlot()
+
+	
+	p2.Title = "request perfomance"
+	p2.Marker = widgets.MarkerDot
+	p2.Data = make([][]float64, 2)
+	p2.Data[0] = []float64{1, 2, 3, 4, 5}
+	p2.Data[1] = sinData[1][4:]
+	p2.Data[1] = []float64{}
+	p2.SetRect(rect[0], rect[1], rect[2], rect[3])
+	p2.AxesColor = ui.ColorWhite
+	p2.LineColors[0] = ui.ColorRed
+	p2.PlotType = widgets.ScatterPlot
+
+	ui.Render(p2)
+
+	return
+	uiEvents := ui.PollEvents()
+	for {
+		e := <-uiEvents
+		switch e.ID {
+		case "q", "<C-c>":
+			return
+		case "e":
+			rect := []int{rect[0], rect[1] + 1, rect[2], rect[3] + 1}
+			p2.SetRect(rect[0], rect[1], rect[2], rect[3])
+			ui.Render(p2)
+		case "w":
+			p2.Data[0] = append(p2.Data[0], p2.Data[0][len(p2.Data[0]) -1 ] + 2)
+			ui.Render(p2)
+		}
+	}
+
+}
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -55,7 +115,7 @@ var rootCmd = &cobra.Command{
 
 		// table.Render()
 
-		if (numRequest < connRequest) {
+		if numRequest < connRequest {
 			fmt.Println("\nyour maths is out of order,\nthere are far more number of conncurrent request than number of request to be made\n ")
 			return
 		}
@@ -76,21 +136,11 @@ var rootCmd = &cobra.Command{
 
 		} else {
 			if URL != "" {
-				// var URL string
-				// var numRequest int64
-				// var connRequest int64
-				// var method string
-				// var header string
-				// var body string
-				// var file string
-
 				fmt.Println("url: ", URL, " number of request: ", numRequest, " conncurrent request: ", connRequest,
-								" method: ", method, " header: ", header, " body: ", body, " file: ", file)
+					" method: ", method, " header: ", header, " body: ", body, " file: ", file)
 
-				
-				
 				var dataHeader map[string]interface{}
-				
+
 				if header != "" {
 					err := json.Unmarshal([]byte(header), &dataHeader)
 
@@ -101,17 +151,52 @@ var rootCmd = &cobra.Command{
 				}
 
 				p := pkg.HttpRequest{
-					Url: URL,
+					Url:    URL,
 					Method: method,
-					Body: []byte(body),
+					Body:   []byte(body),
 					Header: dataHeader,
 				}
 
-				res := pkg.MultipleRequest(p, numRequest, connRequest)
+
+				var wg sync.WaitGroup
+
 				
+
+				rs := make(chan pkg.RequestStat)
+
+				wg.Add(1)
+				
+				go func () {
+					rs <- pkg.MultipleRequest(p, numRequest, connRequest)
+					// res = pkg.MultipleRequest(p, numRequest, connRequest)
+					wg.Done()
+				}()
+
+				res := <- rs
+
+				// num of succesfull req
+				// num of failed req
+				// peak hits per sec
+				// peak transfer speed
+				
+
+				// TotalTime        float64
+				// TotalNumReq      int64
+				// ConcurrentReq    int64
+				// NumSuccess       int64
+				// NumFailed        int64
+				// AvgRequestPerSec int64
+				// PeakLoadCapacity int
+				// Latency          float64
+
 				metrics := [][]string{
 					{"Total time taken (S)", strconv.FormatFloat(res.TotalTime, 'f', -1, 64)},
-					{"Requests Per Second (RPS)", strconv.FormatFloat(float64(res.RequestPerSec), 'f', -1, 64)},
+					{"Total Number of request", strconv.FormatInt(res.TotalNumReq, 10)},
+					{"Number of concurrent reques", strconv.FormatInt(res.ConcurrentReq, 10)},
+					{"AVG Requests Per Second (RPS)", strconv.FormatFloat(float64(res.AvgRequestPerSec), 'f', -1, 64)},
+					{"Number of success", strconv.FormatInt(res.NumSuccess, 10)},
+					{"Number of faliure", strconv.FormatInt(res.NumFailed, 10)},
+					{"average Latency (ms)", strconv.FormatFloat(res.Latency, 'f', 5, 64)},
 				}
 
 				table := tablewriter.NewWriter(os.Stdout)
@@ -122,13 +207,17 @@ var rootCmd = &cobra.Command{
 					table.Append(v)
 				}
 
-				table.Render()
 
+				// wg.Add(1)
+				// go func() {
+				// 	GenDrawable()
+				// 	wg.Done()
+				// }()
+
+				wg.Wait()
+				table.Render()
 			}
 		}
-			
-
-		
 
 	},
 }
