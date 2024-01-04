@@ -103,17 +103,9 @@ var rootCmd = &cobra.Command{
 	  |____| |____/ |__|  |___  /\____/    |____|  (____  /___|  /____/|__|_ \__|
 				  \/                        \/     \/           \/   	
 	`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
+
 	Run: func(cmd *cobra.Command, args []string) {
 
-		// for e := range ui.PollEvents() {
-		// 	if e.Type == ui.KeyboardEvent {
-		// 		break
-		// 	}
-		// }
-
-		// table.Render()
 
 		if numRequest < connRequest {
 			fmt.Println("\nyour maths is out of order,\nthere are far more number of conncurrent request than number of request to be made\n ")
@@ -122,101 +114,86 @@ var rootCmd = &cobra.Command{
 
 		if len(args) < 1 && URL == "" {
 			fmt.Println("no url provided. check `turbotanuki --help`")
-		} else if len(args) == 1 {
-			_, err := url.Parse(args[0])
-			if err != nil {
-				fmt.Println("Invalid URL")
-				return
-			}
-			err = pkg.MakePlainHttpCall(args[0])
-			if err != nil {
-				fmt.Println("network problem")
-				return
-			}
-
 		} else {
-			if URL != "" {
-				fmt.Println("url: ", URL, " number of request: ", numRequest, " conncurrent request: ", connRequest,
-					" method: ", method, " header: ", header, " body: ", body, " file: ", file)
 
-				var dataHeader map[string]interface{}
-
-				if header != "" {
-					err := json.Unmarshal([]byte(header), &dataHeader)
-
-					if err != nil {
-						fmt.Println("wrong parameters passed", err)
-						return
-					}
+			for i, maybeUrl := range args {
+				_, err := url.Parse(maybeUrl)
+				if err != nil {
+					continue
 				}
 
-				p := pkg.HttpRequest{
-					Url:    URL,
-					Method: method,
-					Body:   []byte(body),
-					Header: dataHeader,
-				}
-
-
-				var wg sync.WaitGroup
-
-				
-
-				rs := make(chan pkg.RequestStat)
-
-				wg.Add(1)
-				
-				go func () {
-					rs <- pkg.MultipleRequest(p, numRequest, connRequest)
-					// res = pkg.MultipleRequest(p, numRequest, connRequest)
-					wg.Done()
-				}()
-
-				res := <- rs
-
-				// num of succesfull req
-				// num of failed req
-				// peak hits per sec
-				// peak transfer speed
-				
-
-				// TotalTime        float64
-				// TotalNumReq      int64
-				// ConcurrentReq    int64
-				// NumSuccess       int64
-				// NumFailed        int64
-				// AvgRequestPerSec int64
-				// PeakLoadCapacity int
-				// Latency          float64
-
-				metrics := [][]string{
-					{"Total time taken (S)", strconv.FormatFloat(res.TotalTime, 'f', -1, 64)},
-					{"Total Number of request", strconv.FormatInt(res.TotalNumReq, 10)},
-					{"Number of concurrent reques", strconv.FormatInt(res.ConcurrentReq, 10)},
-					{"AVG Requests Per Second (RPS)", strconv.FormatFloat(float64(res.AvgRequestPerSec), 'f', -1, 64)},
-					{"Number of success", strconv.FormatInt(res.NumSuccess, 10)},
-					{"Number of faliure", strconv.FormatInt(res.NumFailed, 10)},
-					{"average Latency (ms)", strconv.FormatFloat(res.Latency, 'f', 5, 64)},
-				}
-
-				table := tablewriter.NewWriter(os.Stdout)
-
-				table.SetHeader([]string{"Metric", "Value"})
-
-				for _, v := range metrics {
-					table.Append(v)
-				}
-
-
-				// wg.Add(1)
-				// go func() {
-				// 	GenDrawable()
-				// 	wg.Done()
-				// }()
-
-				wg.Wait()
-				table.Render()
+				URL = args[i]
+				break
 			}
+
+			if URL == "" {
+				fmt.Println("invalid url provided")
+				return
+			}
+		} 
+
+		if URL != "" {
+			fmt.Println("url: ", URL, " number of request: ", numRequest, " conncurrent request: ", connRequest,
+				" method: ", method, " header: ", header, " body: ", body, " file: ", file)
+
+			var dataHeader map[string]interface{}
+
+			if header != "" {
+				err := json.Unmarshal([]byte(header), &dataHeader)
+
+				if err != nil {
+					fmt.Println("wrong parameters passed", err)
+					return
+				}
+			}
+
+			p := pkg.HttpRequest{
+				Url:    URL,
+				Method: method,
+				Body:   []byte(body),
+				Header: dataHeader,
+			}
+
+			var wg sync.WaitGroup
+
+			rs := make(chan pkg.RequestStat)
+
+			wg.Add(1)
+			
+			go func () {
+				rs <- pkg.MultipleRequest(p, numRequest, connRequest)
+				// res = pkg.MultipleRequest(p, numRequest, connRequest)
+				wg.Done()
+			}()
+
+			res := <- rs
+
+			metrics := [][]string{
+				{"Total time taken (S)", strconv.FormatFloat(res.TotalTime, 'f', -1, 64)},
+				{"Total Number of request", strconv.FormatInt(res.TotalNumReq, 10)},
+				{"Number of concurrent reques", strconv.FormatInt(res.ConcurrentReq, 10)},
+				{"AVG Requests Per Second (RPS)", strconv.FormatFloat(float64(res.AvgRequestPerSec), 'f', -1, 64)},
+				{"Number of success", strconv.FormatInt(res.NumSuccess, 10)},
+				{"Number of faliure", strconv.FormatInt(res.NumFailed, 10)},
+				{"average Latency (ms)", strconv.FormatFloat(res.Latency, 'f', 5, 64)},
+			}
+
+			table := tablewriter.NewWriter(os.Stdout)
+
+			table.SetHeader([]string{"Metric", "Value"})
+
+			for _, v := range metrics {
+				table.Append(v)
+			}
+
+			// wg.Add(1)
+			// go func() {
+			// 	GenDrawable()
+			// 	wg.Done()
+			// }()
+
+			wg.Wait()
+			table.Render()
 		}
 
 	},
@@ -239,13 +216,7 @@ func init() {
 
 	rootCmd.Flags().StringVarP(&file, "file", "f", "", "this is to be followed by a file location that contains a tanuki directives(commands) , it allows for more complex request")
 
-	// var method string
-	// var header string
-	// var body string
-
 	rootCmd.Flags().StringVarP(&method, "method", "m", "", "this specifies the method to be used for the http request")
 	rootCmd.Flags().StringVarP(&header, "header", "d", ``, "this specifies the header to be used for the http request")
 	rootCmd.Flags().StringVarP(&body, "body", "b", "", "this specifies the body to be used for the http request")
-
-	// rootCmd.MarkFlagRequired("name")
 }
