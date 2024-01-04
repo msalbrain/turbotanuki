@@ -62,7 +62,5 @@ For more options, use the `-h` or `--help` flag:
 
 If you'd like to contribute to this project, please follow the [contribution guidelines](CONTRIBUTING.md).
 
-## License
 
-This project is licensed under the [License Name] - see the [LICENSE](LICENSE) file for details.
 
