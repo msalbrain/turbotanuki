@@ -58,10 +58,6 @@ For more options, use the `-h` or `--help` flag:
 ./tt --help
 ```
 
-Also for those using a windows machine with x86 architecture a `server_test.exe` has been provided for testing it runs on port 13001. It supports all the methods you need and returns a random response (200 - 500)
-
-
-
 ## Contributing
 
 If you'd like to contribute to this project, please follow the [contribution guidelines](CONTRIBUTING.md).
