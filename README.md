@@ -57,10 +57,6 @@ For more options, use the `-h` or `--help` flag:
 ```bash
 ./tt --help
 ```
-
-## Contributing
-
-If you'd like to contribute to this project, please follow the [contribution guidelines](CONTRIBUTING.md).
-
+ 
 
 
