@@ -1,15 +1,16 @@
-// TODO: timeout
-
 package pkg
 
 import (
 	"bytes"
-	
+	"fmt"
+
+	"context"
 	"math"
-	"github.com/fatih/color"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/fatih/color"
 )
 
 var red = color.New(color.BgRed).Add(color.Underline)
@@ -21,12 +22,9 @@ type HttpRequest struct {
 	Method string
 	Header map[string]interface{}
 	Body   []byte
+	Timeout int64 // in millisecond
 }
 
-// peak hits per sec
-// peak transfer speed
-// latency
-// point where
 
 type RequestStat struct {
 	TotalTime        float64
@@ -47,6 +45,8 @@ type MicroRequestStat struct {
 	Failed           bool
 }
 
+
+// make general http request
 func MakePlainHttpCall(url string) error {
 	_, err := http.Get(url)
 
@@ -57,30 +57,35 @@ func MakePlainHttpCall(url string) error {
 	return nil
 }
 
+
+// make http call with more parmeters (in body and header)
 func MakeComplexHttpCall(reqData HttpRequest) MicroRequestStat {
 
 	startTime := time.Now()
-
-	req, err := http.NewRequest(reqData.Method, reqData.Url, bytes.NewBuffer(reqData.Body))
-
-
+	
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(reqData.Timeout) * time.Millisecond)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, reqData.Method, reqData.Url, bytes.NewBuffer(reqData.Body))
+	
 	headerLen := 0
 	for key, value := range reqData.Header {
 		headerLen += len(key)
 		headerLen += len(value.(string))
 		req.Header.Add(key, value.(string))
 	}
-
+	
 	if err != nil {
 		return MicroRequestStat{}
 	}
 
 	client := &http.Client{}
-
+	
 	resp, err := client.Do(req)
+	elapsedTime := time.Since(startTime)
 	if err != nil {
-		return MicroRequestStat{}
+		return MicroRequestStat{Failed: true, StatusCode: 500, TotalTime: float64(elapsedTime.Milliseconds())}
 	}
+	
 	defer resp.Body.Close()
 
 	headerResLen := 0
@@ -91,14 +96,14 @@ func MakeComplexHttpCall(reqData HttpRequest) MicroRequestStat {
 		}
 	}
 
-	elapsedTime := time.Since(startTime)
+	
 	
 	Ms := MicroRequestStat{TotalTime: float64(elapsedTime.Milliseconds()),
 		StatusCode: resp.StatusCode,
 		ByteSentSize: req.ContentLength + int64(headerLen),
 		ByteRecievedSize: resp.ContentLength + int64(headerResLen),
 	}
-	
+
 	if resp.StatusCode > 199 && resp.StatusCode < 300 {
 		// green.Println("congratulations it was a success with ", resp.StatusCode)
 		Ms.Failed = false
@@ -109,45 +114,52 @@ func MakeComplexHttpCall(reqData HttpRequest) MicroRequestStat {
 		Ms.Failed = true
 		// red.Println("failed with ", resp.StatusCode)
 	}
-
+	
 	return Ms
 
 }
 
+
+/*
+	make number of request in `connReq` and returns arr of stat on each request
+*/
 func MakeConnReq(reqData HttpRequest, connReq int64) []MicroRequestStat {
 
 	var wg sync.WaitGroup
-	var t []MicroRequestStat
 
-	// var Store []float64
-
-	// rs := make(chan RequestStat, connReq + 1)
-
+	t := []MicroRequestStat{}
+	rs := make(chan MicroRequestStat)
+	
 	for i := 0; int64(i) < connReq; i++ {
-		
 		wg.Add(1)
-		func() {
+		go func() {
 			defer wg.Done()
-			t = append(t, MakeComplexHttpCall(reqData))
-			// rs <- MakeComplexHttpCall(reqData)
+			rs <- MakeComplexHttpCall(reqData)
+			}()
+		}
+		
+		go func() { // no wait group cause all it does is listen on rs and append 
+			for r := range rs {
+				t = append(t, r)
+			}		
 		}()
-	}
-	wg.Wait()
-
-	// for r := range rs {
-	// 	fmt.Println("i recieved one")
-	// 	t = append(t, r)
-	// }
-
-	// close(rs)
-
-	return t
+				
+		wg.Wait()
+		return t
 }
 
-func MultipleRequest(reqData HttpRequest, numReq int64, connReq int64) RequestStat {
-	tList := [][]MicroRequestStat{}
 
-	TInter := int(numReq / connReq)
+
+/*
+	batches up request and make them
+*/
+func MultipleRequest(reqData HttpRequest, numReq int64, connReq int64, reqChan chan Uper) RequestStat {
+
+	startTime := time.Now()
+
+	tList := [][]MicroRequestStat{} // contains an array of an array of the stats from batch request
+
+	TInter := int(numReq / connReq) 
 	remind := numReq % connReq
 
 	if remind > 0 {
@@ -157,30 +169,42 @@ func MultipleRequest(reqData HttpRequest, numReq int64, connReq int64) RequestSt
 		remind = connReq
 	}
 
+	var u []float64
+
 	for i := 0; i < TInter; i++ {
+		
 		if i == TInter-1 {
-			MCR := MakeConnReq(reqData, remind)
-			tList = append(tList, MCR)
+			microStat := MakeConnReq(reqData, remind)		
+			u = append(u, 1/float64(TInter))
+			reqChan <- Uper{By: 1/float64(TInter)} // makes update to progress view
+			tList = append(tList, microStat)
 			break
 		}
-		MCR := MakeConnReq(reqData, connReq)
-		tList = append(tList, MCR)
+		
+		microStat := MakeConnReq(reqData, connReq)
+		u = append(u, 1/float64(TInter))
+		reqChan <- Uper{By: 1/float64(TInter)} // makes update to progress view
+
+		tList = append(tList, microStat)
 	}
 
-	_, _, rs := analysis(tList)
+	close(reqChan)
+
+	fmt.Println("array of u", u)	
+
+	elapsedTime := time.Since(startTime)
+	rs := analysis(tList, elapsedTime.Seconds(), connReq)
 
 	return rs
 }
 
-func analysis(r [][]MicroRequestStat) (tTime float64, reqSec float64, reqstat RequestStat) {
 
-	// num of succesfull req
-	// num of failed req
-	// peak hits per sec
-	// peak transfer speed
-	
+/*
+	performs analysis on request stats and returns result
+*/
+func analysis(r [][]MicroRequestStat, totalTime float64, cunnReq int64) (reqstat RequestStat) {
+
 	index := 0.0
-
 
 	NumSuccess := 0
 	NumFail := 0
@@ -189,43 +213,42 @@ func analysis(r [][]MicroRequestStat) (tTime float64, reqSec float64, reqstat Re
 	SecTime := []float64{}
 
 	totalNumReq := 0
-	cunnReq := 0
-
+	
 	for i := 0; i < len(r); i++ {
 		numReq := 0
 		timeMicro := 0.0
-		cunnReq = 0
+		
 		for j := 0; j < len(r[i]); j++ {
-			cunnReq += 1
+			totalNumReq += 1
 			
 			if math.IsInf(r[i][j].TotalTime, 1) {
+				NumFail += 1
 				continue
 			}
 	
-			if r[i][j].StatusCode < 300 && r[i][j].StatusCode > 199 {
-				NumSuccess += 1
-			} else {
+			if r[i][j].Failed {
 				NumFail += 1
+			} else {
+				NumSuccess += 1
 			}
 
-			totalNumReq += 1
 			numReq += 1
 			index += 1
-			tTime += r[i][j].TotalTime
+
 			timeMicro += r[i][j].TotalTime
+
 			SecTime = append(SecTime, r[i][j].TotalTime)
 		}
 
 		reqSecArr = append(reqSecArr, float64(numReq)/(timeMicro * 0.001))	
 	}
 
-	_, PeakHit := highestFloat(reqSecArr)	
-
-	tTime = tTime * 0.001
-	reqSec = findAverage(reqSecArr)
+	_, PeakHit := highestFloat(filterInfinity(reqSecArr))
+	
+	reqSec := findAverage(reqSecArr)
 
 	reqstat = RequestStat{
-		TotalTime: tTime,
+		TotalTime: totalTime,
 		TotalNumReq: int64(totalNumReq),
 		ConcurrentReq: int64(cunnReq), 
 		NumSuccess: int64(NumSuccess),

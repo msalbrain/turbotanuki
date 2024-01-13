@@ -7,7 +7,7 @@
 
 ## Description
 
-turbotanuki is a Go-based tool for load testing HTTP servers. It provides a simple command-line interface with various flags to customize your requests. 
+turbotanuki is a Go-based tool for load testing HTTP servers. It provides a simple command-line interface with various flags to customize your requests. Test The limits of your service, your ddos protections solution and much more.
 
 ## Features
 
