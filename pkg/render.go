@@ -136,7 +136,7 @@ func (p PrintModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (p PrintModel) View() string {
-	l := lipgloss.NewStyle().Foreground(lipgloss.Color("#0f0")).Render
+	l := lipgloss.NewStyle().Foreground(lipgloss.Color("#72cadd")).Render
 	return l(p.Text)
 }
 
