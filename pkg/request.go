@@ -176,7 +176,6 @@ func MultipleRequest(reqData HttpRequest, numReq int64, connReq int64, reqChan c
 		remind = connReq
 	}
 
-
 	for i := 0; i < TInter; i++ {
 		
 		if i == TInter-1 {
@@ -191,7 +190,6 @@ func MultipleRequest(reqData HttpRequest, numReq int64, connReq int64, reqChan c
 
 		reqChan <- Uper{By: 1/float64(TInter)} // makes update to progress view
 	
-
 		tList = append(tList, microStat)
 	}
 

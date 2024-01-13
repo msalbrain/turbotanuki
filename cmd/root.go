@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 NAME HERE <salbiz2021@gmail.com>
+Copyright © 2023 NAME HERE Salman
 */
 package cmd
 
@@ -9,7 +9,6 @@ import (
 	
 
 	"github.com/msalbrain/turbotanuki/pkg"
-	// "github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 
 	"net/url"
@@ -29,8 +28,6 @@ var header string
 var body string
 
 var file string
-
-
 
 
 
@@ -91,12 +88,9 @@ var rootCmd = &cobra.Command{
 				wg.Done()
 			}
 
-			// var wh sync.WaitGroup
-
 			if header != "" {
 				
 				err := json.Unmarshal([]byte(header), &dataHeader)
-
 
 				if err != nil {
 					fmt.Println("wrong parameters passed", err)
