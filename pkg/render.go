@@ -74,8 +74,7 @@ func (m ProgressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
 	case Uper:
-
-		cmd := m.progress.IncrPercent(msg.By)		
+		cmd := m.progress.IncrPercent(msg.By)
 		if m.progress.Percent() == 1.0 {
 			return m, tea.Quit
 		}

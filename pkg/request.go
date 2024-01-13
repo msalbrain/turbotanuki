@@ -2,7 +2,7 @@ package pkg
 
 import (
 	"bytes"
-	"fmt"
+	
 
 	"context"
 	"math"
@@ -135,17 +135,24 @@ func MakeConnReq(reqData HttpRequest, connReq int64) []MicroRequestStat {
 		go func() {
 			defer wg.Done()
 			rs <- MakeComplexHttpCall(reqData)
-			}()
-		}
-		
-		go func() { // no wait group cause all it does is listen on rs and append 
-			for r := range rs {
-				t = append(t, r)
-			}		
 		}()
+	}
+		
+	wg.Add(1)
+	go func() { 
+		defer wg.Done()
+		for r := range rs { // listen on channel until all request are made
+			if len(t) + 1 == int(connReq) { 
+				t = append(t, r)
+				close(rs)
+				return				
+			}
+			t = append(t, r)
+		}	
+	}()
 				
-		wg.Wait()
-		return t
+	wg.Wait()
+	return t
 }
 
 
@@ -159,8 +166,8 @@ func MultipleRequest(reqData HttpRequest, numReq int64, connReq int64, reqChan c
 
 	tList := [][]MicroRequestStat{} // contains an array of an array of the stats from batch request
 
-	TInter := int(numReq / connReq) 
-	remind := numReq % connReq
+	TInter := int(numReq / connReq)
+	remind := numReq % connReq // last number of cuncurent request to be made
 
 	if remind > 0 {
 		TInter += 1
@@ -169,28 +176,26 @@ func MultipleRequest(reqData HttpRequest, numReq int64, connReq int64, reqChan c
 		remind = connReq
 	}
 
-	var u []float64
 
 	for i := 0; i < TInter; i++ {
 		
 		if i == TInter-1 {
 			microStat := MakeConnReq(reqData, remind)		
-			u = append(u, 1/float64(TInter))
+
 			reqChan <- Uper{By: 1/float64(TInter)} // makes update to progress view
+			
 			tList = append(tList, microStat)
 			break
 		}
-		
 		microStat := MakeConnReq(reqData, connReq)
-		u = append(u, 1/float64(TInter))
+
 		reqChan <- Uper{By: 1/float64(TInter)} // makes update to progress view
+	
 
 		tList = append(tList, microStat)
 	}
 
 	close(reqChan)
-
-	fmt.Println("array of u", u)	
 
 	elapsedTime := time.Since(startTime)
 	rs := analysis(tList, elapsedTime.Seconds(), connReq)
